@@ -1,0 +1,73 @@
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 16px;
+  width: 220px;
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f5e0dc;
+}
+
+.badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: #313244;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #6c7086;
+}
+
+.badge.active .dot {
+  background-color: #a6e3a1;
+}
+
+.badge.active #statusText {
+  color: #a6e3a1;
+}
+
+.btn {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: #89b4fa;
+  color: #11111b;
+}
+
+.btn.active {
+  background-color: #f38ba8;
+  color: #11111b;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}

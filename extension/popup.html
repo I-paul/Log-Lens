@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LogLens Extension</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>LogLens</h2>
+      <span class="badge" id="statusBadge">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Disconnected</span>
+      </span>
+    </div>
+
+    <div class="actions">
+      <button id="toggleBtn" class="btn">Start Capture</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

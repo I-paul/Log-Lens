@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "LogLens Extension",
+  "version": "0.1.0",
+  "description": "Chrome extension for LogLens log monitoring and analysis.",
+  "permissions": [
+    "debugger",
+    "activeTab",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://localhost:4000/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LogLens Capture"
+  }
+}

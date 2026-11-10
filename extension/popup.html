@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LogLens Extension</title>
+  <title>LogLens</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -18,6 +18,16 @@
 
     <div class="actions">
       <button id="toggleBtn" class="btn">Start Capture</button>
+    </div>
+
+    <div id="lastResult" class="result-section" style="display:none;">
+      <div class="section-label">Latest Analysis</div>
+      <div id="resultSummary" class="result-summary"></div>
+      <div id="resultFile" class="result-file"></div>
+    </div>
+
+    <div class="footer">
+      <span class="version">v0.1.0</span>
     </div>
   </div>
 

@@ -1,55 +1,82 @@
 import { LogBundle } from './bundlerService';
 
 export interface AnalyzeResponse {
-  summary: string;
-  file_ref: string;
-  line_ref: number;
+  root_cause_file: string;
+  root_cause_line: number;
+  error_summary: string;
+  detailed_explanation: string;
+  confidence: number;
+  github_url: string | null;
   remediation_steps: string[];
 }
 
-/**
- * Sends a LogBundle to the Python FastAPI backend (/analyze endpoint) with a 5s timeout.
- * Returns a degraded fallback object on network failures, timeouts, or backend error codes.
- */
+function buildGitHubUrl(
+  filePath: string,
+  lineNumber: number,
+  owner?: string,
+  repo?: string,
+  commitSha?: string
+): string | null {
+  if (!owner || !repo) return null;
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  const ref = commitSha || 'main';
+  return `https://github.com/${owner}/${repo}/blob/${ref}/${normalizedPath}#L${lineNumber}`;
+}
+
 export async function analyzeBundle(
   bundle: LogBundle,
   backendUrl: string = process.env.BACKEND_URL || 'http://localhost:8000'
 ): Promise<AnalyzeResponse> {
-  const fallbackResponse: AnalyzeResponse = {
-    summary: 'Analysis unavailable — backend error',
-    file_ref: bundle.file_ref ?? 'unknown',
-    line_ref: bundle.line_ref ?? 0,
-    remediation_steps: []
+  const fallback: AnalyzeResponse = {
+    root_cause_file: bundle.file_ref ?? 'unknown',
+    root_cause_line: bundle.line_ref ?? 0,
+    error_summary: 'Analysis unavailable — backend error',
+    detailed_explanation: '',
+    confidence: 0,
+    github_url: null,
+    remediation_steps: [],
   };
 
   const endpoint = `${backendUrl.replace(/\/+$/, '')}/analyze`;
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
 
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bundle),
-      signal: controller.signal
+      signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.warn(`[FastAPI Client] Backend returned non-200 status code: ${response.status}`);
-      return fallbackResponse;
+      console.warn(`[FastAPI Client] Backend returned status: ${response.status}`);
+      return fallback;
     }
 
     const data = (await response.json()) as AnalyzeResponse;
+
+    // Augment with GitHub URL if config is available
+    const owner = process.env.GITHUB_OWNER;
+    const repo = process.env.GITHUB_REPO;
+    const commitSha = process.env.GITHUB_COMMIT_SHA;
+    if (!data.github_url && data.root_cause_file && data.root_cause_file !== 'unknown') {
+      data.github_url = buildGitHubUrl(
+        data.root_cause_file,
+        data.root_cause_line,
+        owner,
+        repo,
+        commitSha
+      );
+    }
+
     return data;
   } catch (err: unknown) {
     clearTimeout(timeoutId);
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('[FastAPI Client] Error contacting backend:', errorMessage);
-    return fallbackResponse;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[FastAPI Client] Error contacting backend:', msg);
+    return fallback;
   }
 }

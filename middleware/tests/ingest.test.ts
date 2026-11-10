@@ -16,7 +16,7 @@ describe('Middleware Integration Tests', () => {
         message: 'Uncaught TypeError: Cannot read properties of undefined',
         stackTrace: 'TypeError: Cannot read properties of undefined\n    at main.js:42:12',
         url: 'https://example.com/app',
-        timestamp: '2026-07-29T10:25:00.000Z'
+        timestamp: '2026-07-29T10:25:00.000Z',
       };
 
       const response = await request(app)
@@ -24,9 +24,9 @@ describe('Middleware Integration Tests', () => {
         .send(validPayload);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('summary');
-      expect(response.body).toHaveProperty('file_ref');
-      expect(response.body).toHaveProperty('line_ref');
+      expect(response.body).toHaveProperty('root_cause_file');
+      expect(response.body).toHaveProperty('root_cause_line');
+      expect(response.body).toHaveProperty('error_summary');
       expect(response.body).toHaveProperty('remediation_steps');
     });
 
@@ -34,7 +34,7 @@ describe('Middleware Integration Tests', () => {
       const invalidPayload = {
         stackTrace: 'TypeError: null is not an object',
         url: 'https://example.com/app',
-        timestamp: '2026-07-29T10:25:00.000Z'
+        timestamp: '2026-07-29T10:25:00.000Z',
       };
 
       const response = await request(app)

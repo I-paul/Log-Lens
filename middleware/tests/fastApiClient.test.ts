@@ -7,7 +7,7 @@ describe('fastApiClient Unit Tests', () => {
       message: 'TypeError: undefined error',
       stackTrace: 'at App.js:10:5',
       url: 'http://localhost:3000/src/App.js',
-      timestamp: '2026-08-07T12:00:00.000Z'
+      timestamp: '2026-08-07T12:00:00.000Z',
     },
     stack_trace: 'at App.js:10:5',
     code_chunks: [
@@ -18,67 +18,66 @@ describe('fastApiClient Unit Tests', () => {
         gitMeta: {
           commitHash: '1234567890123456789012345678901234567890',
           commitDate: '2026-08-07T10:00:00.000Z',
-          author: 'Alice'
-        }
-      }
+          author: 'Alice',
+        },
+      },
     ],
     file_ref: '/src/App.js',
-    line_ref: 10
+    line_ref: 10,
   };
 
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it('(a) should return parsed AnalyzeResponse on successful backend call (HTTP 200)', async () => {
-    const mockSuccessResponse = {
-      summary: 'Null pointer dereference on object',
-      file_ref: '/src/App.js',
-      line_ref: 10,
-      remediation_steps: ['Check object initialization before property access']
+  it('should return parsed AnalyzeResponse on successful backend call', async () => {
+    const mockResponse = {
+      root_cause_file: '/src/App.js',
+      root_cause_line: 10,
+      error_summary: 'Null pointer dereference',
+      detailed_explanation: 'Accessing property on undefined object.',
+      confidence: 0.85,
+      github_url: null,
+      remediation_steps: ['Check object initialization'],
     };
 
     jest.spyOn(global, 'fetch').mockImplementation(async () => {
       return {
         ok: true,
         status: 200,
-        json: async () => mockSuccessResponse
+        json: async () => mockResponse,
       } as Response;
     });
 
     const result = await analyzeBundle(sampleBundle, 'http://localhost:8000');
-    expect(result).toEqual(mockSuccessResponse);
+    expect(result.root_cause_file).toBe('/src/App.js');
+    expect(result.root_cause_line).toBe(10);
+    expect(result.error_summary).toBe('Null pointer dereference');
+    expect(result.remediation_steps).toHaveLength(1);
   });
 
-  it('(b) should return degraded fallback shape on backend error (HTTP 500)', async () => {
+  it('should return fallback on backend error (HTTP 500)', async () => {
     jest.spyOn(global, 'fetch').mockImplementation(async () => {
       return {
         ok: false,
         status: 500,
-        json: async () => ({ detail: 'Internal Server Error' })
+        json: async () => ({ detail: 'Internal Server Error' }),
       } as Response;
     });
 
     const result = await analyzeBundle(sampleBundle, 'http://localhost:8000');
-    expect(result).toEqual({
-      summary: 'Analysis unavailable — backend error',
-      file_ref: '/src/App.js',
-      line_ref: 10,
-      remediation_steps: []
-    });
+    expect(result.error_summary).toBe('Analysis unavailable — backend error');
+    expect(result.root_cause_file).toBe('/src/App.js');
+    expect(result.root_cause_line).toBe(10);
   });
 
-  it('(c) should return degraded fallback shape on network timeout / failure', async () => {
+  it('should return fallback on network failure', async () => {
     jest.spyOn(global, 'fetch').mockImplementation(async () => {
-      throw new Error('Network timeout / Connection refused');
+      throw new Error('Connection refused');
     });
 
     const result = await analyzeBundle(sampleBundle, 'http://localhost:8000');
-    expect(result).toEqual({
-      summary: 'Analysis unavailable — backend error',
-      file_ref: '/src/App.js',
-      line_ref: 10,
-      remediation_steps: []
-    });
+    expect(result.error_summary).toBe('Analysis unavailable — backend error');
+    expect(result.remediation_steps).toEqual([]);
   });
 });

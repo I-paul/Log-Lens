@@ -2,6 +2,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleBtn = document.getElementById('toggleBtn');
   const statusBadge = document.getElementById('statusBadge');
   const statusText = document.getElementById('statusText');
+  const lastResultDiv = document.getElementById('lastResult');
+  const resultSummary = document.getElementById('resultSummary');
+  const resultFile = document.getElementById('resultFile');
 
   function updateUI(isCapturing) {
     if (isCapturing) {
@@ -17,18 +20,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Check current capture state on load
-  chrome.tabs.query({ active: true, currentWindow: true }, ([activeTab]) => {
-    if (!activeTab || !activeTab.id) return;
+  function showLastResult(analysis) {
+    if (!analysis) {
+      lastResultDiv.style.display = 'none';
+      return;
+    }
+    lastResultDiv.style.display = 'block';
+    const summary = analysis.error_summary || analysis.summary || 'N/A';
+    const file = analysis.root_cause_file || analysis.file_ref || 'unknown';
+    const line = analysis.root_cause_line || analysis.line_ref || 0;
+    resultSummary.textContent = summary;
+    resultFile.textContent = file + ':' + line;
+  }
 
-    chrome.storage.local.get(['isCapturing', 'attachedTabId'], (data) => {
-      const isCapturingCurrentTab =
-        !!data.isCapturing && data.attachedTabId === activeTab.id;
-      updateUI(isCapturingCurrentTab);
-    });
+  chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
+    if (chrome.runtime.lastError) return;
+    if (response) {
+      chrome.tabs.query({ active: true, currentWindow: true }, ([activeTab]) => {
+        if (!activeTab) return;
+        const isCapturingCurrentTab =
+          !!response.isCapturing && response.attachedTabId === activeTab.id;
+        updateUI(isCapturingCurrentTab);
+      });
+      showLastResult(response.lastAnalysis);
+    }
   });
 
-  // Handle toggle button click
   toggleBtn.addEventListener('click', () => {
     toggleBtn.disabled = true;
 
@@ -36,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
       toggleBtn.disabled = false;
 
       if (chrome.runtime.lastError) {
-        console.error('[LogLens Popup] Error sending message:', chrome.runtime.lastError.message);
+        console.error('[LogLens Popup] Error:', chrome.runtime.lastError.message);
         return;
       }
 

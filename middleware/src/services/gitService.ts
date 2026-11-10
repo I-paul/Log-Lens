@@ -4,9 +4,10 @@ import { simpleGit } from 'simple-git';
 
 export interface StackFrame {
   functionName: string;
-  url: string;
+  file: string;
   lineNumber: number;
   columnNumber: number;
+  language: string;
 }
 
 export interface GitBlameResult {
@@ -15,55 +16,124 @@ export interface GitBlameResult {
   author: string;
 }
 
-/**
- * Parses Chrome V8 CDP stack frame format `functionName@url:line:col`
- */
-export function parseStackFrame(stackTraceLine: string): StackFrame | null {
-  if (!stackTraceLine) return null;
-  const trimmed = stackTraceLine.trim();
+// V8 CDP: functionName@url:line:col
+const V8_PATTERN = /^(.+?)@(.+):(\d+):(\d+)$/;
+// Node.js / V8: at functionName (/path/file.js:line:col) or at /path/file.js:line:col
+const NODE_PAREN_PATTERN = /^\s*at\s+(?:(.+?)\s+)?\((.+):(\d+):(\d+)\)$/;
+const NODE_BARE_PATTERN = /^\s*at\s+(.+):(\d+):(\d+)$/;
+// Java: at com.example.Class.method(File.java:42)
+const JAVA_PATTERN = /^\s*at\s+([\w.$]+)\(([\w.]+):(\d+)\)$/;
+// Python: File "/path/to/file.py", line 42, in function_name
+const PYTHON_PATTERN = /^\s*File\s+"([^"]+)",\s+line\s+(\d+)(?:,\s+in\s+(.+))?$/;
+// Go: /path/to/file.go:42 +0x1a2
+const GO_PATTERN = /^\s*([\w/.\\-]+\.go):(\d+)/;
 
-  const atIndex = trimmed.lastIndexOf('@');
-  let functionName = '(anonymous)';
-  let urlAndPos = trimmed;
+export function parseStackFrames(stackTrace: string): StackFrame[] {
+  if (!stackTrace) return [];
+  const lines = stackTrace.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const frames: StackFrame[] = [];
 
-  if (atIndex !== -1) {
-    functionName = trimmed.slice(0, atIndex) || '(anonymous)';
-    urlAndPos = trimmed.slice(atIndex + 1);
+  for (const line of lines) {
+    const frame = parseOneLine(line);
+    if (frame) frames.push(frame);
   }
 
-  const match = urlAndPos.match(/^(.+):(\d+):(\d+)$/);
-  if (!match) return null;
-
-  return {
-    functionName,
-    url: match[1],
-    lineNumber: parseInt(match[2], 10),
-    columnNumber: parseInt(match[3], 10)
-  };
+  return frames;
 }
 
-/**
- * Maps a captured browser URL to a REPO_PATH-relative (or absolute) file path by prefix-stripping ORIGIN_PREFIX.
- */
+function parseOneLine(line: string): StackFrame | null {
+  let m: RegExpMatchArray | null;
+
+  // Python
+  m = line.match(PYTHON_PATTERN);
+  if (m) {
+    return {
+      functionName: m[3] || '(anonymous)',
+      file: m[1],
+      lineNumber: parseInt(m[2], 10),
+      columnNumber: 0,
+      language: 'python',
+    };
+  }
+
+  // Java
+  m = line.match(JAVA_PATTERN);
+  if (m) {
+    return {
+      functionName: m[1],
+      file: m[2],
+      lineNumber: parseInt(m[3], 10),
+      columnNumber: 0,
+      language: 'java',
+    };
+  }
+
+  // Node.js with parens
+  m = line.match(NODE_PAREN_PATTERN);
+  if (m) {
+    return {
+      functionName: m[1] || '(anonymous)',
+      file: m[2],
+      lineNumber: parseInt(m[3], 10),
+      columnNumber: parseInt(m[4], 10),
+      language: 'node',
+    };
+  }
+
+  // Node.js bare
+  m = line.match(NODE_BARE_PATTERN);
+  if (m) {
+    return {
+      functionName: '(anonymous)',
+      file: m[1],
+      lineNumber: parseInt(m[2], 10),
+      columnNumber: parseInt(m[3], 10),
+      language: 'node',
+    };
+  }
+
+  // V8 CDP
+  m = line.match(V8_PATTERN);
+  if (m) {
+    return {
+      functionName: m[1] || '(anonymous)',
+      file: m[2],
+      lineNumber: parseInt(m[3], 10),
+      columnNumber: parseInt(m[4], 10),
+      language: 'v8',
+    };
+  }
+
+  // Go
+  m = line.match(GO_PATTERN);
+  if (m) {
+    return {
+      functionName: '(anonymous)',
+      file: m[1],
+      lineNumber: parseInt(m[2], 10),
+      columnNumber: 0,
+      language: 'go',
+    };
+  }
+
+  return null;
+}
+
 export function resolveToRepoPath(
-  url: string,
+  fileRef: string,
   originPrefix: string = process.env.ORIGIN_PREFIX || 'http://localhost:3000/',
   repoPath: string = process.env.REPO_PATH || process.cwd()
 ): string {
-  let relativePath = url;
+  let relativePath = fileRef;
 
-  if (originPrefix && url.startsWith(originPrefix)) {
-    relativePath = url.slice(originPrefix.length);
+  if (originPrefix && fileRef.startsWith(originPrefix)) {
+    relativePath = fileRef.slice(originPrefix.length);
   }
 
   relativePath = relativePath.replace(/^[/\\]+/, '');
-
   return path.resolve(repoPath, relativePath);
 }
 
-/**
- * Reads a file and returns a code snippet centered on lineNumber +/- contextLines.
- */
 export async function getCodeChunk(
   filePath: string,
   lineNumber: number,
@@ -71,16 +141,11 @@ export async function getCodeChunk(
 ): Promise<string> {
   const fileContent = await fs.promises.readFile(filePath, 'utf-8');
   const lines = fileContent.split(/\r?\n/);
-
   const start = Math.max(0, lineNumber - 1 - contextLines);
   const end = Math.min(lines.length, lineNumber - 1 + contextLines + 1);
-
   return lines.slice(start, end).join('\n');
 }
 
-/**
- * Runs `git blame -L line,line --porcelain` on a file in repoPath and returns commit metadata.
- */
 export async function getGitBlame(
   filePath: string,
   lineNumber: number,
@@ -97,7 +162,7 @@ export async function getGitBlame(
     '-L',
     `${lineNumber},${lineNumber}`,
     '--porcelain',
-    relativePath
+    relativePath,
   ]);
 
   const lines = rawOutput.split(/\r?\n/);
@@ -119,9 +184,5 @@ export async function getGitBlame(
     ? new Date(authorTime * 1000).toISOString()
     : new Date().toISOString();
 
-  return {
-    commitHash,
-    commitDate,
-    author
-  };
+  return { commitHash, commitDate, author };
 }

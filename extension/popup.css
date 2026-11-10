@@ -2,7 +2,7 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   margin: 0;
   padding: 16px;
-  width: 220px;
+  width: 260px;
   background-color: #1e1e2e;
   color: #cdd6f4;
 }
@@ -10,7 +10,7 @@ body {
 .container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .header {
@@ -61,6 +61,7 @@ h2 {
   cursor: pointer;
   background-color: #89b4fa;
   color: #11111b;
+  transition: opacity 0.15s;
 }
 
 .btn.active {
@@ -70,4 +71,48 @@ h2 {
 
 .btn:hover {
   opacity: 0.9;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.result-section {
+  padding: 10px;
+  background: #313244;
+  border-radius: 6px;
+  border: 1px solid #45475a;
+}
+
+.section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #a6adc8;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.result-summary {
+  font-size: 12px;
+  color: #f5e0dc;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.result-file {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  color: #a6e3a1;
+  word-break: break-all;
+}
+
+.footer {
+  text-align: center;
+}
+
+.version {
+  font-size: 10px;
+  color: #6c7086;
 }

@@ -3,13 +3,12 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { simpleGit } from 'simple-git';
 import {
-  parseStackFrame,
+  parseStackFrames,
   resolveToRepoPath,
   getCodeChunk,
-  getGitBlame
+  getGitBlame,
 } from '../src/services/gitService';
 
-// Load test environment variables
 const envTestPath = path.resolve(__dirname, '../.env.test');
 dotenv.config({ path: envTestPath });
 
@@ -17,13 +16,11 @@ const fixtureDir = path.resolve(__dirname, '../test-fixtures/git-test-repo');
 
 describe('gitService Unit Tests', () => {
   beforeAll(async () => {
-    // Ensure test-fixtures/test-repo exists and clean it up if necessary
     if (fs.existsSync(fixtureDir)) {
       fs.rmSync(fixtureDir, { recursive: true, force: true });
     }
     fs.mkdirSync(path.join(fixtureDir, 'src'), { recursive: true });
 
-    // Create sample files
     const appJsContent = [
       '// Line 1: Header comment',
       'import React from "react";',
@@ -34,19 +31,18 @@ describe('gitService Unit Tests', () => {
       '  };',
       '',
       '  return <button onClick={handleClick}>Click me</button>;',
-      '}'
+      '}',
     ].join('\n');
 
     const utilsJsContent = [
       'export function add(a, b) {',
       '  return a + b;',
-      '}'
+      '}',
     ].join('\n');
 
     fs.writeFileSync(path.join(fixtureDir, 'src/App.js'), appJsContent, 'utf-8');
     fs.writeFileSync(path.join(fixtureDir, 'src/utils.js'), utilsJsContent, 'utf-8');
 
-    // Initialize git repository and commit files
     const git = simpleGit({ baseDir: fixtureDir });
     await git.init();
     await git.addConfig('user.name', 'Test Author');
@@ -55,45 +51,58 @@ describe('gitService Unit Tests', () => {
     await git.commit('Initial commit for testing');
   });
 
-  describe('parseStackFrame', () => {
-    it('should parse a standard V8 CDP stack frame line', () => {
-      const line = 'renderApp@http://localhost:3000/src/App.js:6:9';
-      const frame = parseStackFrame(line);
+  describe('parseStackFrames', () => {
+    it('should parse V8 CDP stack frame lines', () => {
+      const stack = 'renderApp@http://localhost:3000/src/App.js:6:9\ninit@http://localhost:3000/src/utils.js:1:5';
+      const frames = parseStackFrames(stack);
 
-      expect(frame).toEqual({
+      expect(frames).toHaveLength(2);
+      expect(frames[0]).toMatchObject({
         functionName: 'renderApp',
-        url: 'http://localhost:3000/src/App.js',
+        file: 'http://localhost:3000/src/App.js',
         lineNumber: 6,
-        columnNumber: 9
+        language: 'v8',
       });
     });
 
-    it('should parse an anonymous V8 stack frame line', () => {
-      const line = '(anonymous)@http://localhost:3000/src/App.js:12:3';
-      const frame = parseStackFrame(line);
+    it('should parse Node.js stack frames with parens', () => {
+      const stack = '    at Object.<anonymous> (/home/user/app/index.js:42:10)';
+      const frames = parseStackFrames(stack);
 
-      expect(frame).toEqual({
-        functionName: '(anonymous)',
-        url: 'http://localhost:3000/src/App.js',
-        lineNumber: 12,
-        columnNumber: 3
+      expect(frames).toHaveLength(1);
+      expect(frames[0]).toMatchObject({
+        file: '/home/user/app/index.js',
+        lineNumber: 42,
+        language: 'node',
       });
     });
 
-    it('should parse a frame line without function name', () => {
-      const line = 'http://localhost:3000/src/App.js:6:9';
-      const frame = parseStackFrame(line);
+    it('should parse Python stack frames', () => {
+      const stack = '  File "/app/server.py", line 55, in handle_request';
+      const frames = parseStackFrames(stack);
 
-      expect(frame).toEqual({
-        functionName: '(anonymous)',
-        url: 'http://localhost:3000/src/App.js',
-        lineNumber: 6,
-        columnNumber: 9
+      expect(frames).toHaveLength(1);
+      expect(frames[0]).toMatchObject({
+        file: '/app/server.py',
+        lineNumber: 55,
+        language: 'python',
       });
     });
 
-    it('should return null for an unparseable line', () => {
-      expect(parseStackFrame('invalid stack trace string')).toBeNull();
+    it('should parse Java stack frames', () => {
+      const stack = '    at com.example.App.main(App.java:10)';
+      const frames = parseStackFrames(stack);
+
+      expect(frames).toHaveLength(1);
+      expect(frames[0]).toMatchObject({
+        file: 'App.java',
+        lineNumber: 10,
+        language: 'java',
+      });
+    });
+
+    it('should return empty array for unparseable text', () => {
+      expect(parseStackFrames('just some random text')).toEqual([]);
     });
   });
 
@@ -114,7 +123,6 @@ describe('gitService Unit Tests', () => {
       const snippet = await getCodeChunk(appJsPath, 6, 2);
 
       expect(snippet).toContain('throw new Error("Sample error");');
-      // Should include context lines (line 4 to line 8)
       expect(snippet).toContain('export function App() {');
     });
   });

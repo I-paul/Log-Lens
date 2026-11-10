@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Log Lens",
   "version": "0.1.0",
-  "description": "Chrome extension for LogLens log monitoring analysis and Root Cause Explanation.",
+  "description": "AI-powered browser extension for intelligent log analysis and root-cause explanation.",
   "permissions": [
     "debugger",
     "activeTab",
@@ -24,7 +24,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "LogLens Capture",
+    "default_title": "Log Lens",
     "default_icon": "Icon Resized.png"
   },
   "icons": {

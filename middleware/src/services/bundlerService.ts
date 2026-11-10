@@ -1,11 +1,11 @@
 import fs from 'fs';
 import { IngestBrowserPayload } from '../schemas/ingest.schema';
 import {
-  parseStackFrame,
+  parseStackFrames,
   resolveToRepoPath,
   getCodeChunk,
   getGitBlame,
-  GitBlameResult
+  GitBlameResult,
 } from './gitService';
 
 export interface CodeChunk {
@@ -23,28 +23,21 @@ export interface LogBundle {
   line_ref: number | null;
 }
 
-/**
- * Creates a structured log bundle combining raw ingested payload, stack trace,
- * resolved code chunks (up to 5), Git blame metadata, and reference file/line pointers.
- */
 export async function createBundle(
   payload: IngestBrowserPayload,
   originPrefix?: string,
   repoPath?: string
 ): Promise<LogBundle> {
   const stackTraceStr = payload.stackTrace || '';
-  const lines = stackTraceStr.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const frames = parseStackFrames(stackTraceStr);
 
   const codeChunks: CodeChunk[] = [];
 
-  for (const line of lines) {
+  for (const frame of frames) {
     if (codeChunks.length >= 5) break;
 
     try {
-      const frame = parseStackFrame(line);
-      if (!frame) continue;
-
-      const resolvedPath = resolveToRepoPath(frame.url, originPrefix, repoPath);
+      const resolvedPath = resolveToRepoPath(frame.file, originPrefix, repoPath);
 
       if (!fs.existsSync(resolvedPath)) continue;
 
@@ -55,10 +48,9 @@ export async function createBundle(
         filePath: resolvedPath,
         lineNumber: frame.lineNumber,
         code,
-        gitMeta
+        gitMeta,
       });
     } catch {
-      // Gracefully skip frames that fail resolution
       continue;
     }
   }
@@ -70,6 +62,6 @@ export async function createBundle(
     stack_trace: stackTraceStr,
     code_chunks: codeChunks,
     file_ref: firstChunk ? firstChunk.filePath : null,
-    line_ref: firstChunk ? firstChunk.lineNumber : null
+    line_ref: firstChunk ? firstChunk.lineNumber : null,
   };
 }
